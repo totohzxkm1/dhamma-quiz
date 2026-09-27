@@ -4,6 +4,8 @@ import random
 import unicodedata
 import os
 import glob
+import re
+import difflib
 
 # ตั้งค่าหน้าตาของเว็บ
 st.set_page_config(
@@ -48,8 +50,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def normalize_and_split_thai(text):
-    text = unicodedata.normalize('NFC', text.strip())
+# 1. ฟังก์ชันดึงและแยกตัวอักษรภาษาไทยพร้อมสระ/วรรณยุกต์ (ลบช่องว่างออกทั้งหมด)
+def clean_and_split_thai(text):
+    if not text:
+        return []
+    # ตัดช่องว่าง/เว้นวรรคออกทั้งหมด
+    text = re.sub(r'\s+', '', text.strip())
+    # จัดรูปแบบ Unicode ให้มาตรฐาน
+    text = unicodedata.normalize('NFC', text)
+    
+    # จัดกลุ่มสระ/วรรณยุกต์ให้อยู่กับตัวอักษรหลัก
     clusters = []
     for char in text:
         if unicodedata.category(char) in ['Mn', 'Mc', 'Me'] and clusters:
@@ -58,36 +68,42 @@ def normalize_and_split_thai(text):
             clusters.append(char)
     return clusters
 
+# 2. ฟังก์ชันไฮไลต์ข้อความที่พิมพ์ผิด/เกิน/ตก โดยไม่นำช่องว่างมาคิด
 def highlight_differences(user_input, correct_answer):
-    user_clusters = normalize_and_split_thai(user_input)
-    correct_clusters = normalize_and_split_thai(correct_answer)
+    user_clusters = clean_and_split_thai(user_input)
+    correct_clusters = clean_and_split_thai(correct_answer)
     
+    matcher = difflib.SequenceMatcher(None, user_clusters, correct_clusters)
     html_output = []
-    for i in range(len(user_clusters)):
-        u_char = user_clusters[i]
-        c_char = correct_clusters[i] if i < len(correct_clusters) else ""
-        
-        if u_char == c_char:
-            html_output.append(f'<span class="char-match">{u_char}</span>')
-        else:
-            html_output.append(f'<span class="char-mismatch">{u_char}</span>')
-            
+    
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            # ตัวอักษรตรงกัน -> แสดงสีเขียว
+            for char in user_clusters[i1:i2]:
+                html_output.append(f'<span class="char-match">{char}</span>')
+        elif tag in ('replace', 'insert', 'delete'):
+            # ตัวอักษรที่พิมพ์ผิด เกิน หรือตก -> แสดงสีแดงขีดเส้นใต้
+            for char in user_clusters[i1:i2]:
+                html_output.append(f'<span class="char-mismatch">{char}</span>')
+                
     return "".join(html_output)
 
-# --- ฟังก์ชันดึงไฟล์ JSON แยกตามหมวดหมู่จากโฟลเดอร์ questions ---
+# 3. ฟังก์ชันตรวจว่าถูกต้องหรือไม่
+def is_answer_correct(user_input, correct_answer):
+    return clean_and_split_thai(user_input) == clean_and_split_thai(correct_answer)
+
+# 4. โหลดไฟล์ JSON ทั้งหมดจากโฟลเดอร์ questions
 @st.cache_data
 def load_all_categories():
     categories_data = {}
     folder_path = "questions"
     
-    # ตรวจสอบว่ามีโฟลเดอร์ questions หรือไม่
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
         
     json_files = glob.glob(os.path.join(folder_path, "*.json"))
     
     for file_path in json_files:
-        # ใช้ชื่อไฟล์ (ตัด .json ออก) เป็นชื่อหมวดหมู่
         category_name = os.path.basename(file_path).replace(".json", "")
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -122,14 +138,13 @@ def get_new_question(selected_cat):
         st.session_state.answered = False
         st.session_state.user_answer = ""
 
-# --- UI หน้าเว็บ Streamlit ---
+# UI หน้าเว็บ
 st.title("☸️ แอปตอบคำถามธรรมะ")
-st.caption("ระบบตรวจคำตอบภาษาไทย แยกหมวดหมู่อัตโนมัติจากไฟล์ JSON")
+st.caption("ระบบตรวจคำตอบภาษาไทย ข้ามการตรวจเว้นวรรคอัตโนมัติ")
 
 if not all_categories:
     st.error("ไม่พบไฟล์คำถามในโฟลเดอร์ 'questions/' กรุณาสร้างไฟล์ .json ด้านในโฟลเดอร์ก่อนครับ")
 else:
-    # สร้างตัวเลือกหมวดหมู่จากชื่อไฟล์ที่มีในโฟลเดอร์
     cat_list = ["รวมทุกหมวดหมู่"] + list(all_categories.keys())
     selected_category = st.selectbox("📌 เลือกหมวดหมู่คำถาม:", cat_list)
 
@@ -151,7 +166,7 @@ else:
             "✍️ พิมพ์คำตอบของคุณที่นี่:",
             value=st.session_state.user_answer,
             key="input_box",
-            placeholder="พิมพ์คำตอบแล้วกด Enter..."
+            placeholder="พิมพ์คำตอบแล้วกดส่ง..."
         )
 
         if st.button("ส่งคำตอบ", type="primary"):
@@ -164,17 +179,14 @@ else:
         if st.session_state.answered:
             st.markdown("### 📊 ผลการตรวจคำตอบ")
             
-            clean_user = normalize_and_split_thai(st.session_state.user_answer)
-            clean_correct = normalize_and_split_thai(q['answer'])
-
-            if clean_user == clean_correct:
-                st.success("🎉 ถูกต้องเก่งมากครับ! พิมพ์ได้ถูกต้องทุกตัวอักษรและสระวรรณยุกต์")
+            if is_answer_correct(st.session_state.user_answer, q['answer']):
+                st.success("🎉 ถูกต้องเก่งมากครับ!")
             else:
-                st.error("❌ ยังไม่ถูกต้อง มีตัวอักษร สระ หรือวรรณยุกต์ที่พิมพ์ผิด/ตก")
+                st.error("❌ ยังไม่ถูกต้อง มีตัวอักษรหรือสระที่พิมพ์ผิด/เกิน/ตก")
                 
                 st.markdown("**คำตอบที่ถูกต้อง:**")
                 st.markdown(f'<div class="correct-text">{q["answer"]}</div>', unsafe_allow_html=True)
                 
-                st.markdown("**เปรียบเทียบคำตอบ (ตัวที่ผิด/ตก ไฮไลต์สีแดง):**")
+                st.markdown("**เปรียบเทียบคำตอบของคุณ (ตัวที่ผิด/เกิน ไฮไลต์สีแดง):**")
                 highlighted_html = highlight_differences(st.session_state.user_answer, q['answer'])
                 st.markdown(f'<div class="diff-box">{highlighted_html}</div>', unsafe_allow_html=True)
