@@ -126,6 +126,12 @@ if 'user_answer' not in st.session_state:
 if 'question_index' not in st.session_state:
     st.session_state.question_index = 0
 
+# State สำหรับจัดการการเพิ่มคำถามใหม่และเคลียร์ค่า
+if 'add_q_text' not in st.session_state:
+    st.session_state.add_q_text = ""
+if 'add_a_text' not in st.session_state:
+    st.session_state.add_a_text = ""
+
 all_categories = load_all_categories()
 
 def get_new_question(selected_cat):
@@ -177,7 +183,6 @@ if mode == "🎯 ทำแบบทดสอบ":
 
             input_key = f"input_{st.session_state.question_index}"
             
-            # เปลี่ยนมาใช้ st.text_area เพื่อให้พิมพยาวแล้วตัดขึ้นบรรทัดใหม่อัตโนมัติ (กำหนดความสูงเริ่มต้น height=100)
             user_input = st.text_area(
                 "✍️ พิมพ์คำตอบของคุณที่นี่:",
                 key=input_key,
@@ -228,29 +233,48 @@ else:
         else:
             cat_name = st.text_input("ชื่อหมวดหมู่ใหม่ (เช่น พุทธประวัติ, พระวินัย):").strip()
 
-        new_question = st.text_area("โจทย์คำถาม:")
-        new_answer = st.text_area("คำตอบที่ถูกต้อง:")
+        new_question = st.text_area("โจทย์คำถาม:", key="add_q_text")
+        new_answer = st.text_area("คำตอบที่ถูกต้อง:", key="add_a_text")
 
         if st.button("💾 บันทึกคำถามใหม่", type="primary"):
+            cleaned_q = new_question.strip()
+            cleaned_a = new_answer.strip()
+            
             if not cat_name:
                 st.error("กรุณาระบุชื่อหมวดหมู่ให้ถูกต้อง")
-            elif not new_question.strip() or not new_answer.strip():
+            elif not cleaned_q or not cleaned_a:
                 st.error("กรุณากรอกทั้งโจทย์คำถามและคำตอบ")
             else:
                 cat_questions = all_categories.get(cat_name, [])
-                new_id = len(cat_questions) + 1
                 
-                new_item = {
-                    "id": new_id,
-                    "question": new_question.strip(),
-                    "answer": new_answer.strip()
-                }
-                
-                cat_questions.append(new_item)
-                save_category_data(cat_name, cat_questions)
-                
-                st.toast(f"✅ บันทึกคำถามใหม่ลงหมวด '{cat_name}' เรียบร้อยแล้ว!", icon="🎉")
-                st.rerun()
+                # เช็กโจทย์หรือคำตอบซ้ำ (แปลงข้อความตัดสเปซออกก่อนเช็ก)
+                is_duplicate = False
+                for item in cat_questions:
+                    same_q = clean_and_split_thai(item['question']) == clean_and_split_thai(cleaned_q)
+                    same_a = clean_and_split_thai(item['answer']) == clean_and_split_thai(cleaned_a)
+                    if same_q and same_a:
+                        is_duplicate = True
+                        break
+
+                if is_duplicate:
+                    st.error("⚠️ คำถามและคำตอบนี้มีอยู่ในระบบแล้ว ไม่สามารถบันทึกซ้ำได้!")
+                else:
+                    new_id = len(cat_questions) + 1
+                    new_item = {
+                        "id": new_id,
+                        "question": cleaned_q,
+                        "answer": cleaned_a
+                    }
+                    
+                    cat_questions.append(new_item)
+                    save_category_data(cat_name, cat_questions)
+                    
+                    # เคลียร์ค่าในช่องป้อนข้อมูลเพื่อเตรียมรับคำถามใหม่
+                    st.session_state.add_q_text = ""
+                    st.session_state.add_a_text = ""
+                    
+                    st.toast(f"✅ บันทึกคำถามใหม่ลงหมวด '{cat_name}' เรียบร้อยแล้ว!", icon="🎉")
+                    st.rerun()
 
     # --- โหมด 2: แก้ไขคำถามที่มีอยู่ ---
     elif manage_action == "✏️ แก้ไขคำถาม":
