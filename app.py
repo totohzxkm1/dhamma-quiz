@@ -236,9 +236,16 @@ if mode == "🎯 ทำแบบทดสอบ":
                 
                 with col_b1:
                     if st.button("🔍 แปลงข้อความและต่อท้าย", type="secondary", use_container_width=True):
-                        if canvas_result is not None and canvas_result.image_data is not None:
-                            img_data = canvas_result.image_data
-                            
+                        img_data = None
+                        
+                        # ดักจับ RuntimeError เพื่อป้องกันแอปพัง
+                        try:
+                            if canvas_result is not None:
+                                img_data = canvas_result.image_data
+                        except Exception as e:
+                            img_data = None
+                        
+                        if img_data is not None:
                             # ตรวจสอบว่ามีการเขียนเส้นบนกระดานจริงหรือไม่
                             alpha_channel = img_data[:, :, 3]
                             if np.sum(alpha_channel > 0) > 50:
@@ -261,7 +268,7 @@ if mode == "🎯 ทำแบบทดสอบ":
                             else:
                                 st.warning("กรุณาเขียนตัวหนังสือลงบนกระดานก่อนกดแปลงข้อความครับ")
                         else:
-                            st.warning("ไม่พบข้อมูลบนกระดาน กรุณาลองเขียนใหม่อีกครั้งครับ")
+                            st.warning("กรุณาลองกดแปลงข้อความอีกครั้งครับ")
 
                 with col_b2:
                     if st.button("🧹 ล้างข้อความทั้งหมด", use_container_width=True):
