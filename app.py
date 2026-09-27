@@ -54,12 +54,9 @@ st.markdown("""
 def clean_and_split_thai(text):
     if not text:
         return []
-    # ตัดช่องว่าง/เว้นวรรคออกทั้งหมด
     text = re.sub(r'\s+', '', text.strip())
-    # จัดรูปแบบ Unicode ให้มาตรฐาน
     text = unicodedata.normalize('NFC', text)
     
-    # จัดกลุ่มสระ/วรรณยุกต์ให้อยู่กับตัวอักษรหลัก
     clusters = []
     for char in text:
         if unicodedata.category(char) in ['Mn', 'Mc', 'Me'] and clusters:
@@ -68,7 +65,7 @@ def clean_and_split_thai(text):
             clusters.append(char)
     return clusters
 
-# 2. ฟังก์ชันไฮไลต์ข้อความที่พิมพ์ผิด/เกิน/ตก โดยไม่นำช่องว่างมาคิด
+# 2. ฟังก์ชันไฮไลต์ข้อความที่พิมพ์ผิด/เกิน/ตก
 def highlight_differences(user_input, correct_answer):
     user_clusters = clean_and_split_thai(user_input)
     correct_clusters = clean_and_split_thai(correct_answer)
@@ -78,11 +75,9 @@ def highlight_differences(user_input, correct_answer):
     
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == 'equal':
-            # ตัวอักษรตรงกัน -> แสดงสีเขียว
             for char in user_clusters[i1:i2]:
                 html_output.append(f'<span class="char-match">{char}</span>')
         elif tag in ('replace', 'insert', 'delete'):
-            # ตัวอักษรที่พิมพ์ผิด เกิน หรือตก -> แสดงสีแดงขีดเส้นใต้
             for char in user_clusters[i1:i2]:
                 html_output.append(f'<span class="char-mismatch">{char}</span>')
                 
@@ -124,6 +119,8 @@ if 'answered' not in st.session_state:
     st.session_state.answered = False
 if 'user_answer' not in st.session_state:
     st.session_state.user_answer = ""
+if 'question_index' not in st.session_state:
+    st.session_state.question_index = 0
 
 def get_new_question(selected_cat):
     pool = []
@@ -137,6 +134,8 @@ def get_new_question(selected_cat):
         st.session_state.current_question = random.choice(pool)
         st.session_state.answered = False
         st.session_state.user_answer = ""
+        # เพิ่ม Index เพื่อใช้เปลี่ยน Key ของช่องพิมพ์ข้อความ
+        st.session_state.question_index += 1
 
 # UI หน้าเว็บ
 st.title("☸️ แอปตอบคำถามธรรมะ")
@@ -162,10 +161,12 @@ else:
         st.markdown("---")
         st.info(f"**โจทย์:** {q['question']}")
 
+        # ใช้ Dynamic Key เพื่อล้างช่องข้อความทุกครั้งที่สุ่มคำถามใหม่
+        input_key = f"input_{st.session_state.question_index}"
+        
         user_input = st.text_input(
             "✍️ พิมพ์คำตอบของคุณที่นี่:",
-            value=st.session_state.user_answer,
-            key="input_box",
+            key=input_key,
             placeholder="พิมพ์คำตอบแล้วกดส่ง..."
         )
 
