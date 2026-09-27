@@ -1,0 +1,5 @@
+streamlit
+streamlit-drawable-canvas
+easyocr
+pillow
+opencv-python-headless
