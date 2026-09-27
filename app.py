@@ -217,7 +217,7 @@ if mode == "🎯 ทำแบบทดสอบ":
             
             # --- โหมดที่ 2: เขียนด้วยมือ (Drawing Canvas) ---
             else:
-                st.write("🖌️ เขียนข้อความลงในกรอบด้านล่าง (รองรับลายมือภาษาไทย):")
+                st.write("🖌️ เขียนข้อความลงในกรอบด้านล่าง (แปลงทีละคำ/ประโยค แล้วต่อกันได้):")
                 
                 # กระดานวาดรูป
                 canvas_result = st_canvas(
@@ -231,13 +231,13 @@ if mode == "🎯 ทำแบบทดสอบ":
                     key=f"canvas_{st.session_state.question_index}",
                 )
 
-                col_ocr1, col_ocr2 = st.columns([1, 2])
+                col_ocr1, col_ocr2 = st.columns([1, 1])
+                
                 with col_ocr1:
-                    if st.button("🔍 แปลง ลายมือ เป็น ข้อความ"):
+                    if st.button("🔍 แปลงข้อความและต่อท้าย"):
                         has_image = False
                         img_data = None
                         
-                        # ใช้ try-except เพื่อป้องกัน RuntimeError จาก st_canvas บน Streamlit Cloud
                         try:
                             if canvas_result is not None and hasattr(canvas_result, 'image_data'):
                                 img_data = canvas_result.image_data
@@ -253,19 +253,26 @@ if mode == "🎯 ทำแบบทดสอบ":
                             with st.spinner("กำลังอ่านลายมือ..."):
                                 results = reader.readtext(np.array(img_rgb), detail=0)
                                 recognized_text = "".join(results)
-                                st.session_state[input_key] = recognized_text
                                 
                                 if recognized_text:
-                                    st.toast(f"แปลงข้อความสำเร็จ: {recognized_text}", icon="✨")
+                                    current_text = st.session_state.get(input_key, "")
+                                    st.session_state[input_key] = current_text + recognized_text
+                                    st.toast(f"เพิ่มข้อความ: {recognized_text}", icon="✨")
                                 else:
                                     st.warning("ไม่พบข้อความ หรือลายมือไม่ชัดเจน ลองเขียนใหม่อีกครั้งครับ")
                         else:
                             st.warning("กรุณาเขียนคำตอบลงบนกระดานก่อนกดแปลงข้อความครับ")
 
+                with col_ocr2:
+                    if st.button("🧹 ล้างข้อความทั้งหมด"):
+                        st.session_state[input_key] = ""
+                        st.toast("ล้างข้อความเรียบร้อย", icon="🗑️")
+                        st.rerun()
+
                 user_input = st.text_area(
-                    "📝 ข้อความที่อ่านได้จากลายมือ (สามารถแก้ไขได้ที่นี่ก่อนส่ง):",
+                    "📝 ข้อความที่รวมได้จากลายมือ (แก้ไขหรือพิมพ์เพิ่มตรงนี้ได้):",
                     key=input_key,
-                    height=80
+                    height=100
                 )
 
             # ปุ่มกดส่งคำตอบ
