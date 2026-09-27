@@ -177,10 +177,12 @@ if mode == "🎯 ทำแบบทดสอบ":
 
             input_key = f"input_{st.session_state.question_index}"
             
-            user_input = st.text_input(
+            # เปลี่ยนมาใช้ st.text_area เพื่อให้พิมพยาวแล้วตัดขึ้นบรรทัดใหม่อัตโนมัติ (กำหนดความสูงเริ่มต้น height=100)
+            user_input = st.text_area(
                 "✍️ พิมพ์คำตอบของคุณที่นี่:",
                 key=input_key,
-                placeholder="พิมพ์คำตอบแล้วกดส่ง..."
+                placeholder="พิมพ์คำตอบแล้วกดส่ง...",
+                height=100
             )
 
             if st.button("ส่งคำตอบ", type="primary"):
@@ -247,7 +249,6 @@ else:
                 cat_questions.append(new_item)
                 save_category_data(cat_name, cat_questions)
                 
-                # แสดงการแจ้งเตือนป๊อปอัปแบบ Toast
                 st.toast(f"✅ บันทึกคำถามใหม่ลงหมวด '{cat_name}' เรียบร้อยแล้ว!", icon="🎉")
                 st.rerun()
 
@@ -294,7 +295,6 @@ else:
                         
                         save_category_data(selected_cat, questions_list)
                         
-                        # แสดงการแจ้งเตือนป๊อปอัปแบบ Toast
                         st.toast("✅ อัปเดตข้อมูลคำถามเรียบร้อยแล้ว!", icon="✏️")
                         st.rerun()
 
@@ -320,6 +320,5 @@ else:
                     deleted_item = questions_list.pop(selected_index)
                     save_category_data(selected_cat, questions_list)
                     
-                    # แสดงการแจ้งเตือนป๊อปอัปแบบ Toast
                     st.toast(f"🗑️ ลบคำถามเรียบร้อยแล้ว!", icon="❌")
                     st.rerun()
