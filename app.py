@@ -214,7 +214,7 @@ else:
     manage_action = st.radio("เลือกรายการที่ต้องการทำ:", ["➕ เพิ่มคำถาม", "✏️ แก้ไขคำถาม", "🗑️ ลบคำถาม"], horizontal=True)
     st.markdown("---")
 
-    # --- โหมด 1: เพิ่มคำถามใหม่ (รองรับชื่อหมวดหมู่ภาษาไทย) ---
+    # --- โหมด 1: เพิ่มคำถามใหม่ ---
     if manage_action == "➕ เพิ่มคำถาม":
         st.subheader("➕ เพิ่มคำถามใหม่")
         
@@ -247,7 +247,8 @@ else:
                 cat_questions.append(new_item)
                 save_category_data(cat_name, cat_questions)
                 
-                st.success(f"บันทึกคำถามใหม่ลงหมวด '{cat_name}' เรียบร้อยแล้ว!")
+                # แสดงการแจ้งเตือนป๊อปอัปแบบ Toast
+                st.toast(f"✅ บันทึกคำถามใหม่ลงหมวด '{cat_name}' เรียบร้อยแล้ว!", icon="🎉")
                 st.rerun()
 
     # --- โหมด 2: แก้ไขคำถามที่มีอยู่ ---
@@ -271,7 +272,6 @@ else:
                 
                 st.markdown("---")
                 
-                # Dynamic Key: บังคับรีเฟรชกล่องข้อความทันทีเมื่อเปลี่ยนตัวเลือก
                 edit_key_suffix = f"{selected_cat}_{target_q['id']}"
                 
                 edit_question = st.text_area(
@@ -293,7 +293,9 @@ else:
                         questions_list[selected_index]['answer'] = edit_answer.strip()
                         
                         save_category_data(selected_cat, questions_list)
-                        st.success("อัปเดตข้อมูลคำถามเรียบร้อยแล้ว!")
+                        
+                        # แสดงการแจ้งเตือนป๊อปอัปแบบ Toast
+                        st.toast("✅ อัปเดตข้อมูลคำถามเรียบร้อยแล้ว!", icon="✏️")
                         st.rerun()
 
     # --- โหมด 3: ลบคำถาม ---
@@ -317,5 +319,7 @@ else:
                 if st.button("❌ ยืนยันการลบข้อนี้", type="primary"):
                     deleted_item = questions_list.pop(selected_index)
                     save_category_data(selected_cat, questions_list)
-                    st.success(f"ลบคำถาม '{deleted_item['question']}' เรียบร้อยแล้ว!")
+                    
+                    # แสดงการแจ้งเตือนป๊อปอัปแบบ Toast
+                    st.toast(f"🗑️ ลบคำถามเรียบร้อยแล้ว!", icon="❌")
                     st.rerun()
