@@ -6,6 +6,12 @@ import os
 import glob
 import re
 import difflib
+import numpy as np
+from PIL import Image
+
+# ไลบรารีสำหรับวาดภาพและทำ OCR ภาษาไทย
+from streamlit_drawable_canvas import st_canvas
+import easyocr
 
 # ตั้งค่าหน้าตาของเว็บ
 st.set_page_config(
@@ -13,6 +19,13 @@ st.set_page_config(
     page_icon="☸️",
     layout="centered"
 )
+
+# โหลด EasyOCR ภาษาไทยและอังกฤษ (Caching ไว้เพื่อไม่ต้องโหลดโมเดลใหม่ทุกครั้ง)
+@st.cache_resource
+def load_ocr_reader():
+    return easyocr.Reader(['th', 'en'])
+
+reader = load_ocr_reader()
 
 # Custom CSS
 st.markdown("""
@@ -126,7 +139,7 @@ if 'user_answer' not in st.session_state:
 if 'question_index' not in st.session_state:
     st.session_state.question_index = 0
 
-# State สำหรับจัดการการเพิ่มคำถามใหม่และเคลียร์ค่า
+# State สำหรับโหมดเพิ่มคำถาม
 if 'add_q_text' not in st.session_state:
     st.session_state.add_q_text = ""
 if 'add_a_text' not in st.session_state:
@@ -181,22 +194,75 @@ if mode == "🎯 ทำแบบทดสอบ":
             st.markdown("---")
             st.info(f"**โจทย์:** {q['question']}")
 
-            input_key = f"input_{st.session_state.question_index}"
-            
-            user_input = st.text_area(
-                "✍️ พิมพ์คำตอบของคุณที่นี่:",
-                key=input_key,
-                placeholder="พิมพ์คำตอบแล้วกดส่ง...",
-                height=100
+            # ตัวเลือกรูปแบบการตอบคำถาม
+            input_mode = st.radio(
+                "เลือกรูปแบบการตอบคำถาม:", 
+                ["⌨️ พิมพ์คำตอบ", "✍️ เขียนด้วยมือ"], 
+                horizontal=True
             )
 
+            input_key = f"input_text_{st.session_state.question_index}"
+            
+            if input_key not in st.session_state:
+                st.session_state[input_key] = ""
+
+            # --- โหมดที่ 1: พิมพ์คำตอบ ---
+            if input_mode == "⌨️ พิมพ์คำตอบ":
+                user_input = st.text_area(
+                    "✍️ พิมพ์คำตอบของคุณที่นี่:",
+                    key=input_key,
+                    placeholder="พิมพ์คำตอบแล้วกดส่ง...",
+                    height=100
+                )
+            
+            # --- โหมดที่ 2: เขียนด้วยมือ (Drawing Canvas) ---
+            else:
+                st.write("🖌️ เขียนข้อความลงในกรอบด้านล่าง (รองรับลายมือภาษาไทย):")
+                
+                # กระดานวาดรูป
+                canvas_result = st_canvas(
+                    fill_color="rgba(255, 255, 255, 0)",
+                    stroke_width=4,
+                    stroke_color="#000000",
+                    background_color="#ffffff",
+                    height=200,
+                    width=500,
+                    drawing_mode="freedraw",
+                    key=f"canvas_{st.session_state.question_index}",
+                )
+
+                col_ocr1, col_ocr2 = st.columns([1, 2])
+                with col_ocr1:
+                    if st.button("🔍 แปลง ลายมือ เป็น ข้อความ"):
+                        if canvas_result.image_data is not None:
+                            img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                            img_rgb = img.convert('RGB')
+                            
+                            with st.spinner("กำลังอ่านลายมือ..."):
+                                results = reader.readtext(np.array(img_rgb), detail=0)
+                                recognized_text = "".join(results)
+                                st.session_state[input_key] = recognized_text
+                                
+                                if recognized_text:
+                                    st.toast(f"แปลงข้อความสำเร็จ: {recognized_text}", icon="✨")
+                                else:
+                                    st.warning("ไม่พบข้อความ หรือลายมือไม่ชัดเจน ลองเขียนใหม่อีกครั้งครับ")
+
+                user_input = st.text_area(
+                    "📝 ข้อความที่อ่านได้จากลายมือ (สามารถแก้ไขได้ที่นี่ก่อนส่ง):",
+                    key=input_key,
+                    height=80
+                )
+
+            # ปุ่มกดส่งคำตอบ
             if st.button("ส่งคำตอบ", type="primary"):
                 if user_input.strip() == "":
-                    st.warning("กรุณาพิมพ์คำตอบก่อนส่งครับ")
+                    st.warning("กรุณาพิมพ์หรือเขียนคำตอบก่อนส่งครับ")
                 else:
                     st.session_state.answered = True
                     st.session_state.user_answer = user_input
 
+            # ตรวจผลคำตอบ
             if st.session_state.answered:
                 st.markdown("### 📊 ผลการตรวจคำตอบ")
                 
@@ -247,7 +313,7 @@ else:
             else:
                 cat_questions = all_categories.get(cat_name, [])
                 
-                # เช็กโจทย์หรือคำตอบซ้ำ (แปลงข้อความตัดสเปซออกก่อนเช็ก)
+                # เช็กโจทย์หรือคำตอบซ้ำ
                 is_duplicate = False
                 for item in cat_questions:
                     same_q = clean_and_split_thai(item['question']) == clean_and_split_thai(cleaned_q)
@@ -269,7 +335,6 @@ else:
                     cat_questions.append(new_item)
                     save_category_data(cat_name, cat_questions)
                     
-                    # เคลียร์ค่าในช่องป้อนข้อมูลเพื่อเตรียมรับคำถามใหม่
                     st.session_state.add_q_text = ""
                     st.session_state.add_a_text = ""
                     
