@@ -146,7 +146,7 @@ def get_new_question(selected_cat):
 
 # --- แถบเมนูด้านข้าง (Sidebar) สำหรับสลับหน้า ---
 st.sidebar.title("📌 เมนูหลัก")
-mode = st.sidebar.radio("เลือกหน้าทำรายการ:", ["🎯 ทำแบบทดสอบ", "⚙️ จัดการคำถาม (เพิ่ม/ลบ)"])
+mode = st.sidebar.radio("เลือกหน้าทำรายการ:", ["🎯 ทำแบบทดสอบ", "⚙️ จัดการคำถาม"])
 
 # ==========================================
 # หน้า 1: ทำแบบทดสอบ
@@ -206,16 +206,17 @@ if mode == "🎯 ทำแบบทดสอบ":
                     st.markdown(f'<div class="diff-box">{highlighted_html}</div>', unsafe_allow_html=True)
 
 # ==========================================
-# หน้า 2: จัดการคำถาม (เพิ่ม/ลบ)
+# หน้า 2: จัดการคำถาม (เพิ่ม / แก้ไข / ลบ)
 # ==========================================
 else:
     st.title("⚙️ จัดการชุดคำถาม")
     
-    manage_action = st.radio("เลือกรายการที่ต้องการทำ:", ["➕ เพิ่มคำถามใหม่", "🗑️ ลบคำถาม"], horizontal=True)
+    manage_action = st.radio("เลือกรายการที่ต้องการทำ:", ["➕ เพิ่มคำถาม", "✏️ แก้ไขคำถาม", "🗑️ ลบคำถาม"], horizontal=True)
     st.markdown("---")
 
-    if manage_action == "➕ เพิ่มคำถามใหม่":
-        st.subheader("➕ เพิ่มคำถามใหม่ลงในหมวดหมู่")
+    # --- โหมด 1: เพิ่มคำถามใหม่ ---
+    if manage_action == "➕ เพิ่มคำถาม":
+        st.subheader("➕ เพิ่มคำถามใหม่")
         
         existing_cats = list(all_categories.keys())
         cat_option = st.radio("เลือกประเภทหมวดหมู่:", ["เลือกหมวดที่มีอยู่", "สร้างหมวดหมู่ใหม่"])
@@ -224,12 +225,12 @@ else:
             cat_name = st.selectbox("เลือกหมวดหมู่:", existing_cats)
         else:
             cat_name = st.text_input("ชื่อหมวดหมู่ใหม่ (ภาษาอังกฤษ เช่น vinaya, sutta):").strip().lower()
-            cat_name = re.sub(r'[^a-zA-Z0-9_-]', '', cat_name) # กรองเอาเฉพาะตัวอักษรที่ปลอดภัยสำหรับชื่อไฟล์
+            cat_name = re.sub(r'[^a-zA-Z0-9_-]', '', cat_name)
 
         new_question = st.text_area("โจทย์คำถาม:")
         new_answer = st.text_area("คำตอบที่ถูกต้อง:")
 
-        if st.button("💾 บันทึกคำถาม", type="primary"):
+        if st.button("💾 บันทึกคำถามใหม่", type="primary"):
             if not cat_name:
                 st.error("กรุณาระบุชื่อหมวดหมู่ให้ถูกต้อง")
             elif not new_question.strip() or not new_answer.strip():
@@ -250,22 +251,57 @@ else:
                 st.success(f"บันทึกคำถามใหม่ลงหมวด '{cat_name}' เรียบร้อยแล้ว!")
                 st.rerun()
 
+    # --- โหมด 2: แก้ไขคำถามที่มีอยู่ ---
+    elif manage_action == "✏️ แก้ไขคำถาม":
+        st.subheader("✏️ แก้ไขคำถาม/คำตอบ")
+        
+        if not all_categories:
+            st.info("ยังไม่มีข้อมูลคำถามในระบบ")
+        else:
+            selected_cat = st.selectbox("เลือกหมวดหมู่:", list(all_categories.keys()), key="edit_cat_select")
+            questions_list = all_categories[selected_cat]
+            
+            if not questions_list:
+                st.info("หมวดหมู่นี้ไม่มีคำถาม")
+            else:
+                q_options = [f"ข้อ {q['id']}: {q['question']}" for q in questions_list]
+                selected_q_str = st.selectbox("เลือกข้อที่ต้องการแก้ไข:", q_options, key="edit_q_select")
+                
+                selected_index = q_options.index(selected_q_str)
+                target_q = questions_list[selected_index]
+                
+                st.markdown("---")
+                # ช่องข้อความดึงเนื้อหาเดิมมาแสดงเพื่อให้แก้ไขได้ทันที
+                edit_question = st.text_area("แก้ไขโจทย์คำถาม:", value=target_q['question'], key="edit_q_text")
+                edit_answer = st.text_area("แก้ไขคำตอบที่ถูกต้อง:", value=target_q['answer'], key="edit_a_text")
+                
+                if st.button("💾 บันทึกการแก้ไข", type="primary"):
+                    if not edit_question.strip() or not edit_answer.strip():
+                        st.error("กรุณากรอกข้อมูลให้ครบถ้วน")
+                    else:
+                        questions_list[selected_index]['question'] = edit_question.strip()
+                        questions_list[selected_index]['answer'] = edit_answer.strip()
+                        
+                        save_category_data(selected_cat, questions_list)
+                        st.success("อัปเดตข้อมูลคำถามเรียบร้อยแล้ว!")
+                        st.rerun()
+
+    # --- โหมด 3: ลบคำถาม ---
     elif manage_action == "🗑️ ลบคำถาม":
         st.subheader("🗑️ ลบคำถามออกจากระบบ")
         
         if not all_categories:
             st.info("ยังไม่มีหมวดหมู่คำถามให้ลบ")
         else:
-            selected_cat = st.selectbox("เลือกหมวดหมู่ที่ต้องการจัดการ:", list(all_categories.keys()))
+            selected_cat = st.selectbox("เลือกหมวดหมู่:", list(all_categories.keys()), key="del_cat_select")
             questions_list = all_categories[selected_cat]
             
             if not questions_list:
                 st.info("หมวดหมู่นี้ไม่มีคำถาม")
             else:
-                q_options = [f"ID {q['id']}: {q['question']}" for q in questions_list]
-                selected_q_str = st.selectbox("เลือกข้อที่ต้องการลบ:", q_options)
+                q_options = [f"ข้อ {q['id']}: {q['question']}" for q in questions_list]
+                selected_q_str = st.selectbox("เลือกข้อที่ต้องการลบ:", q_options, key="del_q_select")
                 
-                # หา Index ของข้อที่เลือก
                 selected_index = q_options.index(selected_q_str)
                 
                 if st.button("❌ ยืนยันการลบข้อนี้", type="primary"):
