@@ -219,55 +219,58 @@ if mode == "🎯 ทำแบบทดสอบ":
             else:
                 st.write("🖌️ เขียนข้อความลงในกรอบด้านล่าง (แปลงทีละคำ/ประโยค แล้วต่อกันได้):")
                 
-                # กระดานวาดรูป
-                canvas_result = st_canvas(
-                    fill_color="rgba(255, 255, 255, 0)",
-                    stroke_width=4,
-                    stroke_color="#000000",
-                    background_color="#ffffff",
-                    height=200,
-                    width=500,
-                    drawing_mode="freedraw",
-                    key=f"canvas_{st.session_state.question_index}",
-                )
+                # ครอบด้วย st.form เพื่อป้องกันกระดานถูก Reset ก่อนอ่านค่า
+                with st.form(key=f"canvas_form_{st.session_state.question_index}"):
+                    canvas_result = st_canvas(
+                        fill_color="rgba(255, 255, 255, 0)",
+                        stroke_width=4,
+                        stroke_color="#000000",
+                        background_color="#ffffff",
+                        height=200,
+                        width=500,
+                        drawing_mode="freedraw",
+                        key=f"canvas_{st.session_state.question_index}",
+                    )
+                    
+                    # ปุ่ม Submit ใน Form
+                    submit_ocr = st.form_submit_button("🔍 แปลงข้อความและต่อท้าย")
 
-                col_ocr1, col_ocr2 = st.columns([1, 1])
-                
-                with col_ocr1:
-                    if st.button("🔍 แปลงข้อความและต่อท้าย"):
+                # ประมวลผลเมื่อกดปุ่มใน Form
+                if submit_ocr:
+                    has_image = False
+                    img_data = None
+                    
+                    try:
+                        if canvas_result is not None and canvas_result.image_data is not None:
+                            img_data = canvas_result.image_data
+                            # เช็กว่ามีเส้นที่เขียนจริงหรือไม่ (Alpha channel > 0)
+                            if np.any(img_data[:, :, 3] > 0):
+                                has_image = True
+                    except Exception:
                         has_image = False
-                        img_data = None
+
+                    if has_image and img_data is not None:
+                        img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
+                        img_rgb = img.convert('RGB')
                         
-                        try:
-                            if canvas_result is not None and hasattr(canvas_result, 'image_data'):
-                                img_data = canvas_result.image_data
-                                if img_data is not None and np.any(img_data[:, :, 3] > 0):
-                                    has_image = True
-                        except Exception:
-                            has_image = False
-
-                        if has_image and img_data is not None:
-                            img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
-                            img_rgb = img.convert('RGB')
+                        with st.spinner("กำลังอ่านลายมือ..."):
+                            results = reader.readtext(np.array(img_rgb), detail=0)
+                            recognized_text = "".join(results)
                             
-                            with st.spinner("กำลังอ่านลายมือ..."):
-                                results = reader.readtext(np.array(img_rgb), detail=0)
-                                recognized_text = "".join(results)
-                                
-                                if recognized_text:
-                                    current_text = st.session_state.get(input_key, "")
-                                    st.session_state[input_key] = current_text + recognized_text
-                                    st.toast(f"เพิ่มข้อความ: {recognized_text}", icon="✨")
-                                else:
-                                    st.warning("ไม่พบข้อความ หรือลายมือไม่ชัดเจน ลองเขียนใหม่อีกครั้งครับ")
-                        else:
-                            st.warning("กรุณาเขียนคำตอบลงบนกระดานก่อนกดแปลงข้อความครับ")
+                            if recognized_text:
+                                current_text = st.session_state.get(input_key, "")
+                                st.session_state[input_key] = current_text + recognized_text
+                                st.toast(f"เพิ่มข้อความ: {recognized_text}", icon="✨")
+                            else:
+                                st.warning("ไม่พบข้อความ หรือลายมือไม่ชัดเจน ลองเขียนใหม่อีกครั้งครับ")
+                    else:
+                        st.warning("กรุณาเขียนคำตอบลงบนกระดานก่อนกดแปลงข้อความครับ")
 
-                with col_ocr2:
-                    if st.button("🧹 ล้างข้อความทั้งหมด"):
-                        st.session_state[input_key] = ""
-                        st.toast("ล้างข้อความเรียบร้อย", icon="🗑️")
-                        st.rerun()
+                # ปุ่มล้างข้อความทั้งหมด (อยู่นอก Form)
+                if st.button("🧹 ล้างข้อความในช่องพิมพ์"):
+                    st.session_state[input_key] = ""
+                    st.toast("ล้างข้อความเรียบร้อย", icon="🗑️")
+                    st.rerun()
 
                 user_input = st.text_area(
                     "📝 ข้อความที่รวมได้จากลายมือ (แก้ไขหรือพิมพ์เพิ่มตรงนี้ได้):",
