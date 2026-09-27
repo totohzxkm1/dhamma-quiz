@@ -217,63 +217,60 @@ if mode == "🎯 ทำแบบทดสอบ":
             
             # --- โหมดที่ 2: เขียนด้วยมือ (Drawing Canvas) ---
             else:
-                st.write("🖌️ เขียนข้อความลงในกรอบด้านล่าง (แปลงทีละคำ/ประโยค แล้วต่อกันได้):")
+                st.write("🖌️ เขียนทีละคำ/ประโยค (เช่น เขียน 'พระ' -> กดแปลง -> เขียน 'พุทธ' -> กดแปลง):")
                 
-                # ครอบด้วย st.form เพื่อป้องกันกระดานถูก Reset ก่อนอ่านค่า
-                with st.form(key=f"canvas_form_{st.session_state.question_index}"):
-                    canvas_result = st_canvas(
-                        fill_color="rgba(255, 255, 255, 0)",
-                        stroke_width=4,
-                        stroke_color="#000000",
-                        background_color="#ffffff",
-                        height=200,
-                        width=500,
-                        drawing_mode="freedraw",
-                        key=f"canvas_{st.session_state.question_index}",
-                    )
-                    
-                    # ปุ่ม Submit ใน Form
-                    submit_ocr = st.form_submit_button("🔍 แปลงข้อความและต่อท้าย")
+                canvas_key = f"canvas_draw_{st.session_state.question_index}"
+                
+                canvas_result = st_canvas(
+                    fill_color="rgba(255, 255, 255, 0)",
+                    stroke_width=4,
+                    stroke_color="#000000",
+                    background_color="#ffffff",
+                    height=200,
+                    width=500,
+                    drawing_mode="freedraw",
+                    key=canvas_key,
+                )
 
-                # ประมวลผลเมื่อกดปุ่มใน Form
-                if submit_ocr:
-                    has_image = False
-                    img_data = None
-                    
-                    try:
+                col_b1, col_b2 = st.columns([1, 1])
+                
+                with col_b1:
+                    if st.button("🔍 แปลงข้อความและต่อท้าย", type="secondary", use_container_width=True):
                         if canvas_result is not None and canvas_result.image_data is not None:
                             img_data = canvas_result.image_data
-                            # เช็กว่ามีเส้นที่เขียนจริงหรือไม่ (Alpha channel > 0)
-                            if np.any(img_data[:, :, 3] > 0):
-                                has_image = True
-                    except Exception:
-                        has_image = False
-
-                    if has_image and img_data is not None:
-                        img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
-                        img_rgb = img.convert('RGB')
-                        
-                        with st.spinner("กำลังอ่านลายมือ..."):
-                            results = reader.readtext(np.array(img_rgb), detail=0)
-                            recognized_text = "".join(results)
                             
-                            if recognized_text:
-                                current_text = st.session_state.get(input_key, "")
-                                st.session_state[input_key] = current_text + recognized_text
-                                st.toast(f"เพิ่มข้อความ: {recognized_text}", icon="✨")
+                            # ตรวจสอบว่ามีการเขียนเส้นบนกระดานจริงหรือไม่
+                            alpha_channel = img_data[:, :, 3]
+                            if np.sum(alpha_channel > 0) > 50:
+                                img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
+                                
+                                # ผสานเข้ากับพื้นหลังสีขาวเพื่อให้ OCR อ่านได้แม่นยำ
+                                bg = Image.new("RGB", img.size, (255, 255, 255))
+                                bg.paste(img, mask=img.split()[3])
+                                
+                                with st.spinner("กำลังอ่านลายมือ..."):
+                                    results = reader.readtext(np.array(bg), detail=0)
+                                    recognized_text = "".join(results).strip()
+                                    
+                                    if recognized_text:
+                                        current_text = st.session_state.get(input_key, "")
+                                        st.session_state[input_key] = current_text + recognized_text
+                                        st.toast(f"เพิ่มคำว่า: '{recognized_text}' แล้ว!", icon="✨")
+                                    else:
+                                        st.warning("อ่านลายมือไม่ออก หรือลายมือไม่ชัดเจน ลองเขียนใหม่อีกครั้งครับ")
                             else:
-                                st.warning("ไม่พบข้อความ หรือลายมือไม่ชัดเจน ลองเขียนใหม่อีกครั้งครับ")
-                    else:
-                        st.warning("กรุณาเขียนคำตอบลงบนกระดานก่อนกดแปลงข้อความครับ")
+                                st.warning("กรุณาเขียนตัวหนังสือลงบนกระดานก่อนกดแปลงข้อความครับ")
+                        else:
+                            st.warning("ไม่พบข้อมูลบนกระดาน กรุณาลองเขียนใหม่อีกครั้งครับ")
 
-                # ปุ่มล้างข้อความทั้งหมด (อยู่นอก Form)
-                if st.button("🧹 ล้างข้อความในช่องพิมพ์"):
-                    st.session_state[input_key] = ""
-                    st.toast("ล้างข้อความเรียบร้อย", icon="🗑️")
-                    st.rerun()
+                with col_b2:
+                    if st.button("🧹 ล้างข้อความทั้งหมด", use_container_width=True):
+                        st.session_state[input_key] = ""
+                        st.toast("ล้างข้อความเรียบร้อย", icon="🗑️")
+                        st.rerun()
 
                 user_input = st.text_area(
-                    "📝 ข้อความที่รวมได้จากลายมือ (แก้ไขหรือพิมพ์เพิ่มตรงนี้ได้):",
+                    "📝 ข้อความสะสมที่ได้จากลายมือ (สามารถแก้ไขหรือพิมพ์เพิ่มตรงนี้ได้):",
                     key=input_key,
                     height=100
                 )
