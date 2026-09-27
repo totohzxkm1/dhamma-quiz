@@ -234,7 +234,12 @@ if mode == "🎯 ทำแบบทดสอบ":
                 col_ocr1, col_ocr2 = st.columns([1, 2])
                 with col_ocr1:
                     if st.button("🔍 แปลง ลายมือ เป็น ข้อความ"):
-                        if canvas_result.image_data is not None:
+                        # ตรวจสอบว่ามีข้อมูลภาพและมีเส้นวาดจริงก่อนแปลงข้อความ
+                        if (
+                            canvas_result is not None 
+                            and canvas_result.image_data is not None 
+                            and np.any(canvas_result.image_data[:, :, 3] > 0)
+                        ):
                             img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
                             img_rgb = img.convert('RGB')
                             
@@ -247,6 +252,8 @@ if mode == "🎯 ทำแบบทดสอบ":
                                     st.toast(f"แปลงข้อความสำเร็จ: {recognized_text}", icon="✨")
                                 else:
                                     st.warning("ไม่พบข้อความ หรือลายมือไม่ชัดเจน ลองเขียนใหม่อีกครั้งครับ")
+                        else:
+                            st.warning("กรุณาเขียนคำตอบลงบนกระดานก่อนกดแปลงข้อความครับ")
 
                 user_input = st.text_area(
                     "📝 ข้อความที่อ่านได้จากลายมือ (สามารถแก้ไขได้ที่นี่ก่อนส่ง):",
