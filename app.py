@@ -234,13 +234,20 @@ if mode == "🎯 ทำแบบทดสอบ":
                 col_ocr1, col_ocr2 = st.columns([1, 2])
                 with col_ocr1:
                     if st.button("🔍 แปลง ลายมือ เป็น ข้อความ"):
-                        # ตรวจสอบว่ามีข้อมูลภาพและมีเส้นวาดจริงก่อนแปลงข้อความ
-                        if (
-                            canvas_result is not None 
-                            and canvas_result.image_data is not None 
-                            and np.any(canvas_result.image_data[:, :, 3] > 0)
-                        ):
-                            img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                        has_image = False
+                        img_data = None
+                        
+                        # ใช้ try-except เพื่อป้องกัน RuntimeError จาก st_canvas บน Streamlit Cloud
+                        try:
+                            if canvas_result is not None and hasattr(canvas_result, 'image_data'):
+                                img_data = canvas_result.image_data
+                                if img_data is not None and np.any(img_data[:, :, 3] > 0):
+                                    has_image = True
+                        except Exception:
+                            has_image = False
+
+                        if has_image and img_data is not None:
+                            img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
                             img_rgb = img.convert('RGB')
                             
                             with st.spinner("กำลังอ่านลายมือ..."):
